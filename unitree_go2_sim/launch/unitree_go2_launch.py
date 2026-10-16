@@ -59,6 +59,24 @@ def generate_launch_description():
     declare_gui = DeclareLaunchArgument(
         "gui", default_value="true", description="Use gui"
     )
+    declare_min_normal_force = DeclareLaunchArgument(
+        "min_normal_force", default_value="0.0",
+        description="Temasin BASLAMASI icin gereken kuvvet (N). 0 = esik kapali.")
+    declare_foot_friction = DeclareLaunchArgument(
+        "foot_friction", default_value="0.6",
+        description="Ayak-zemin surtunme katsayisi; dusuk deger kaygan zemin demek")
+    declare_contact_source_topic = DeclareLaunchArgument(
+        "contact_source_topic", default_value="foot_contacts",
+        description="Durum tahmincisinin dinleyecegi temas topigi: "
+                    "'foot_contacts' (Gazebo sensorleri) veya "
+                    "'foot_contacts/gait' (yuruyus fazi)")
+    declare_contact_release_force = DeclareLaunchArgument(
+        "contact_release_force", default_value="5.0",
+        description="Temasin BITMESI icin altina inilmesi gereken kuvvet (N); "
+                    "histerezis, esik etrafindaki zipla(chatter)mayi onler.")
+    declare_contact_timeout = DeclareLaunchArgument(
+        "contact_timeout", default_value="0.05",
+        description="How long a foot stays 'in contact' after the last contact message (s)")
     declare_world_init_x = DeclareLaunchArgument("world_init_x", default_value="0.0")
     declare_world_init_y = DeclareLaunchArgument("world_init_y", default_value="0.0")
     declare_world_init_z = DeclareLaunchArgument("world_init_z", default_value="0.375")
@@ -93,6 +111,7 @@ def generate_launch_description():
         "xacro ", LaunchConfiguration("unitree_go2_description_path"),
         " robot_controllers:=", LaunchConfiguration("ros_control_file"),
         " command_interface:=", LaunchConfiguration("command_interface"),
+        " FOOT_FRICTION:=", LaunchConfiguration("foot_friction"),
         " disable_camera:=", LaunchConfiguration("disable_camera"),
         " disable_d455:=", LaunchConfiguration("disable_d455"),
         " disable_lidar_l1:=", LaunchConfiguration("disable_lidar_l1"),
@@ -116,7 +135,7 @@ def generate_launch_description():
             {"gazebo": True},
             {"publish_joint_states": True},
             {"publish_joint_control": True},
-            {"publish_foot_contacts": False},
+            {"publish_foot_contacts": True},
             {"joint_controller_topic": "joint_group_effort_controller/joint_trajectory"},
             {"urdf": description_command},
             joints_config,
@@ -128,16 +147,32 @@ def generate_launch_description():
         remappings=[("/cmd_vel/smooth", "/cmd_vel")],
     )
 
+    # Varsayilanda min_normal_force=0, yani herhangi bir temas mesaji "ayak yerde"
+    # sayiliyor; salinimdaki ayagin siyirma temaslari da sayildigi icin ayak basina
+    # temas orani %63-72 cikiyordu (tirista ~%50 olmali) ve bacak odometrisi yolu
+    # eksik tahmin ediyordu. Esik ve zaman asimi artik disaridan verilebiliyor.
     foot_contacts_bridge_node = Node(
         package="unitree_application",
         executable="foot_contacts_bridge",
         output="screen",
+        parameters=[
+            {"min_normal_force": LaunchConfiguration("min_normal_force")},
+            {"contact_release_force": LaunchConfiguration("contact_release_force")},
+            {"contact_timeout": LaunchConfiguration("contact_timeout")},
+        ],
     )
 
+    # Durum tahmincisinin hangi temas kaynagini kullanacagi:
+    #   sensor -> Gazebo temas sensorleri (/foot_contacts)
+    #   gait   -> yuruyus fazindan uretilen tahmin (/foot_contacts/gait)
+    # Gazebo sensoru salinimdaki ayagin siyirma temaslarini da bildirdigi icin
+    # ayak basina temas orani %63-72 cikiyor (tirista ~%50 olmali) ve bacak
+    # odometrisi bozuluyor; olcumler icin bkz. DURUM.md.
     state_estimator_node = Node(
         package="champ_base",
         executable="state_estimation_node",
         output="screen",
+        remappings=[("foot_contacts", LaunchConfiguration("contact_source_topic"))],
         parameters=[
             {"orientation_from_imu": True},
             {"urdf": description_command},
@@ -215,7 +250,8 @@ def generate_launch_description():
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
-        launch_arguments={            # 'gui' argumani tanimliydi ama gz_args'a hic baglanmamisti: gui:=false
+        launch_arguments={
+            # 'gui' argumani tanimliydi ama gz_args'a hic baglanmamisti: gui:=false
             # verilse bile Gazebo penceresi aciliyordu. PythonExpression ile
             # gui:=false oldugunda '-s' (yalnizca sunucu) ekleniyor.
             'gz_args': [LaunchConfiguration('world'), ' -r',
@@ -352,6 +388,11 @@ def generate_launch_description():
             declare_ros_control_file,
             declare_gazebo_world,
             declare_gui,
+            declare_min_normal_force,
+            declare_foot_friction,
+            declare_contact_source_topic,
+            declare_contact_release_force,
+            declare_contact_timeout,
             declare_world_init_x,
             declare_world_init_y,
             declare_world_init_z,
