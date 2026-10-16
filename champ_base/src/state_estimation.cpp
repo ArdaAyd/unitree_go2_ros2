@@ -105,14 +105,31 @@ StateEstimation::StateEstimation():
     base_footprint_frame_ = node_namespace_ + "base_footprint";
     base_link_frame_ = node_namespace_ + base_name_;
 
-    std::chrono::milliseconds period(static_cast<int>(1000/50));
+    // Odometri ornekleme hizi. Varsayilan 50 Hz idi; gercek zaman carpani 0.6
+    // civarinda oldugu ve bu bir DUVAR saati zamanlayicisi oldugu icin simulasyon
+    // saniyesi basina yalnizca ~30 ornek dusuyordu. 0.25 s'lik durus fazina ~7
+    // ornek demek ve temas gecislerindeki ayriklastirma hatasi yolu ~%11 eksik
+    // tahmin ettiriyordu (olcum icin bkz. DURUM.md).
+    double odom_rate = 50.0;   // upstream degeri; 200 Hz denendi, olculebilir fark vermedi
+    this->declare_parameter("odom_rate", odom_rate);
+    this->get_parameter("odom_rate", odom_rate);
+    if (odom_rate <= 0.0) odom_rate = 50.0;
+    std::chrono::milliseconds period(std::max(1, static_cast<int>(1000.0 / odom_rate)));
 
-    odom_data_timer_ = this->create_wall_timer(
-         std::chrono::duration_cast<std::chrono::milliseconds>(period),
+    // DUVAR saati yerine SIM saati: duvar saati zamanlayicisi, simulasyonun
+    // ne kadar hizli kostuguna gore sim zamaninda farkli sikliklarda atiyor.
+    // Olculdu: duman acikken render maliyeti yuzunden gercek zaman carpani
+    // 0.865'ten 0.830'a dusuyor (-%4) ve robot tam o oranda yavas yuruyor
+    // (0.220 -> 0.212 m/s). Yani render maliyeti olan her kosul, yuruyusu
+    // sessizce degistiriyordu. Sim saatiyle bu bagimlilik ortadan kalkiyor.
+    const rclcpp::Duration periyot(std::chrono::duration_cast<std::chrono::nanoseconds>(period));
+
+    odom_data_timer_ = rclcpp::create_timer(
+         this, this->get_clock(), periyot,
          std::bind(&StateEstimation::publishFootprintToOdom_, this));
 
-    base_pose_timer_ = this->create_wall_timer(
-         std::chrono::duration_cast<std::chrono::milliseconds>(period),
+    base_pose_timer_ = rclcpp::create_timer(
+         this, this->get_clock(), periyot,
          std::bind(&StateEstimation::publishBaseToFootprint_, this));
 }
 
