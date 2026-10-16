@@ -8,6 +8,8 @@
     <!-- Joint command interface used by ros2_control: "effort" or "position" -->
     <xacro:arg name="command_interface" default="effort"/>
     <!-- Optional sensors, all mounted by default -->
+    <!-- Ayak-zemin surtunme katsayisi; IP2 "kaygan zemin" kosulu bununla uretilecek. -->
+    <xacro:arg name="FOOT_FRICTION" default="0.6"/>
     <xacro:arg name="disable_camera" default="false"/>
     <xacro:arg name="disable_d455" default="false"/>
     <xacro:arg name="disable_lidar_l1" default="false"/>

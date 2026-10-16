@@ -166,8 +166,8 @@
             <self_collide>1</self_collide>
         </gazebo>
         <gazebo reference="lf_foot_link">
-            <mu1>0.6</mu1>
-            <mu2>0.6</mu2>
+            <mu1>$(arg FOOT_FRICTION)</mu1>
+            <mu2>$(arg FOOT_FRICTION)</mu2>
             <kp>10000.0</kp>
             <kd>1.0</kd>
             <sensor name="lf_foot_contact_sensor" type="contact">
@@ -203,8 +203,8 @@
             <self_collide>1</self_collide>
         </gazebo>
         <gazebo reference="rf_foot_link">
-            <mu1>0.6</mu1>
-            <mu2>0.6</mu2>
+            <mu1>$(arg FOOT_FRICTION)</mu1>
+            <mu2>$(arg FOOT_FRICTION)</mu2>
             <kp>10000.0</kp>
             <kd>1.0</kd>
             <sensor name="rf_foot_contact_sensor" type="contact">
@@ -240,8 +240,8 @@
             <self_collide>1</self_collide>
         </gazebo>
         <gazebo reference="lh_foot_link">
-            <mu1>0.6</mu1>
-            <mu2>0.6</mu2>
+            <mu1>$(arg FOOT_FRICTION)</mu1>
+            <mu2>$(arg FOOT_FRICTION)</mu2>
             <kp>10000.0</kp>
             <kd>1.0</kd>
             <sensor name="lh_foot_contact_sensor" type="contact">
@@ -277,8 +277,8 @@
     <self_collide>1</self_collide>
   </gazebo>
   <gazebo reference="rh_foot_link">
-    <mu1>0.6</mu1>
-    <mu2>0.6</mu2>
+    <mu1>$(arg FOOT_FRICTION)</mu1>
+            <mu2>$(arg FOOT_FRICTION)</mu2>
     <kp>10000.0</kp>
     <kd>1.0</kd>
             <sensor name="rh_foot_contact_sensor" type="contact">
