@@ -16,7 +16,8 @@ class FootContactsBridge : public rclcpp::Node
     std::vector<std::string> contact_topics_;
     double publish_rate_;
     double contact_timeout_;
-    double min_normal_force_;
+    double min_normal_force_;      // temasin BASLAMASI icin gereken kuvvet
+    double contact_release_force_; // temasin BITMESI icin altina inilmesi gereken kuvvet
 
     std::vector<bool> in_contact_;
     std::vector<rclcpp::Time> last_msg_time_;
@@ -34,7 +35,20 @@ class FootContactsBridge : public rclcpp::Node
             "contact_topics", {"lf_foot_contacts", "rf_foot_contacts", "lh_foot_contacts", "rh_foot_contacts"});
         publish_rate_ = this->declare_parameter("publish_rate", 100.0);
         contact_timeout_ = this->declare_parameter("contact_timeout", 0.05);
-        min_normal_force_ = this->declare_parameter("min_normal_force", 0.0);
+        min_normal_force_ = this->declare_parameter("min_normal_force", 15.0);
+        contact_release_force_ = this->declare_parameter("contact_release_force", 5.0);
+
+        // Tek esikli karsilastirma, kuvvet esigin etrafinda salindiginda temas
+        // sinyalini zipla(chatter)tiyordu: on ayaklarda adim frekansi 2 Hz yerine
+        // 3 Hz olculmustu. Histerezis bunu engelliyor. Bosaltma esigi yakalama
+        // esiginden buyukse anlamsiz olur, duzelt.
+        if (contact_release_force_ > min_normal_force_)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "contact_release_force (%.1f) > min_normal_force (%.1f); "
+                        "histerezis kapaniyor", contact_release_force_, min_normal_force_);
+            contact_release_force_ = min_normal_force_;
+        }
 
         if (publish_rate_ <= 0.0)
         {
@@ -60,32 +74,40 @@ class FootContactsBridge : public rclcpp::Node
     }
 
   private:
-    bool hasContact_(const ros_gz_interfaces::msg::Contacts &msg) const
+    // The penetration depths Gazebo reports for the feet are numerically zero, so the only usable
+    // measure of how firmly a foot is planted is the contact wrench.
+    double maxForce_(const ros_gz_interfaces::msg::Contacts &msg) const
     {
-        // Gazebo publishes contacts only when they happen, just getting a msg tells that there are contacts,
-        // so no need for additional checking without threshold (min_normal_force_ <= 0.0).
-        if (min_normal_force_ <= 0.0)
-            return true;
-
-        // The penetration depths Gazebo reports for the feet are numerically zero, so the only usable
-        // measure of how firmly a foot is planted is the contact wrench
+        double en_buyuk = 0.0;
         for (const auto &contact : msg.contacts)
         {
             for (const auto &wrench : contact.wrenches)
             {
                 const auto &force = wrench.body_1_wrench.force;
                 const double magnitude = std::sqrt(force.x * force.x + force.y * force.y + force.z * force.z);
-
-                if (magnitude >= min_normal_force_)
-                    return true;
+                if (magnitude > en_buyuk)
+                    en_buyuk = magnitude;
             }
         }
-        return false;
+        return en_buyuk;
     }
 
     void contactCallback_(size_t leg, const ros_gz_interfaces::msg::Contacts::SharedPtr msg)
     {
-        in_contact_[leg] = hasContact_(*msg);
+        if (min_normal_force_ <= 0.0)
+        {
+            // Esik kapali: Gazebo yalnizca temas varken mesaj yayinladigi icin
+            // mesajin gelmesi tek basina temas demek (upstream davranisi).
+            in_contact_[leg] = true;
+        }
+        else
+        {
+            const double kuvvet = maxForce_(*msg);
+            // Histerezis: temas ederken birakmak icin daha dusuk bir esik,
+            // yakalamak icin daha yuksek bir esik.
+            in_contact_[leg] = in_contact_[leg] ? (kuvvet >= contact_release_force_)
+                                                : (kuvvet >= min_normal_force_);
+        }
         last_msg_time_[leg] = msg->header.stamp;
     }
 
