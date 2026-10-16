@@ -13,7 +13,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 
 
 def generate_launch_description():
@@ -207,8 +207,12 @@ def generate_launch_description():
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
-        launch_arguments={
-            'gz_args': [LaunchConfiguration('world'), ' -r']  # Add -r flag to start unpaused
+        launch_arguments={            # 'gui' argumani tanimliydi ama gz_args'a hic baglanmamisti: gui:=false
+            # verilse bile Gazebo penceresi aciliyordu. PythonExpression ile
+            # gui:=false oldugunda '-s' (yalnizca sunucu) ekleniyor.
+            'gz_args': [LaunchConfiguration('world'), ' -r',
+                        PythonExpression(["'' if '", LaunchConfiguration('gui'),
+                                          "'.lower() in ('true','1') else ' -s'"])]
         }.items(),
     )
     
