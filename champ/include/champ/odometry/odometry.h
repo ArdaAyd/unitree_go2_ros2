@@ -37,6 +37,8 @@ namespace champ
     {
         QuadrupedBase *base_;
         geometry::Transformation prev_foot_position_[4];
+        float prev_level_x_[4];
+        float prev_level_y_[4];
         bool prev_foot_contacts_[4];
         float prev_theta_[4];
         unsigned long int prev_time_;
@@ -57,6 +59,8 @@ namespace champ
                 for(unsigned int i = 0; i < 4; i++)
                 {
                     prev_foot_position_[i] = base_->legs[i]->foot_from_base();
+                    prev_level_x_[i] = prev_foot_position_[i].X();
+                    prev_level_y_[i] = prev_foot_position_[i].Y();
                 }
             }        
             
@@ -90,11 +94,28 @@ namespace champ
                 }
             }
 
-            void getVelocities(champ::Velocities &vel, Time now = champ::Odometry::now())
+            /**
+             * @param roll, pitch govde yonelimi (IMU'dan). foot_from_base() ayagi
+             * GOVDE cercevesinde veriyor; govde yururken saliniyor (olcumde roll
+             * tepe-tepe 0.24 rad, pitch 0.14 rad) ve ~0.3 m bacak boyuyla bu,
+             * ayagi govde cercevesinde +-4 cm oynatiyor. Bir adimin yolu ~15 cm
+             * oldugundan telafi edilmezse bu donus, govde cevirisi sanilarak
+             * odometriye karisiyor. Burada ayak vektoru once yatay (yer cekimine
+             * hizali) cerceveye dondurulup oyle farki aliniyor.
+             */
+            void getVelocities(champ::Velocities &vel, float roll, float pitch,
+                               Time now = champ::Odometry::now())
             {      
-                //if all legs are on the ground, nothing to calculate
-                //or if no legs are on the ground, probably the robot is upside-down
-                if(allFeetInContact() || noFootInContact())
+                // Dort ayak da yerdeyken govde hareketsiz DEGIL: tiris yuruyusunde
+                // iki capraz ciftin degisimi sirasinda dort ayak birlikte temas ediyor
+                // ve govde bu sirada ilerlemeye devam ediyor. Olcumde bu durum
+                // orneklerin %36'sini olusturuyordu ve hepsinde hiz sifir sayildigi
+                // icin odometri yolu sistematik olarak %33 eksik tahmin ediyordu.
+                // Ayaklar yerdeyken govde yer degistirmesi ayak kinematiginden
+                // hesaplanabilir, dolayisiyla bu durumun disarida birakilmasi icin
+                // sebep yok. Yalnizca hicbir ayak yerde degilken (robot havada)
+                // bilgi yok, orada sifir dogru.
+                if(noFootInContact())
                 {
                     vel.linear.x = 0.0;
                     vel.linear.y = 0.0;
@@ -112,27 +133,44 @@ namespace champ
                 float y_sum = 0;
                 float theta_sum = 0;
 
+                // Ry(pitch) * Rx(roll): govde cercevesindeki vektoru yatay cerceveye tasir
+                const float cr = cosf(roll),  sr = sinf(roll);
+                const float cp = cosf(pitch), sp = sinf(pitch);
+
                 for(unsigned int i = 0; i < 4; i++)
                 {
                     geometry::Transformation current_foot_position = base_->legs[i]->foot_from_base();
                     
                     bool foot_in_contact = base_->legs[i]->in_contact();
+
+                    const float bx = current_foot_position.X();
+                    const float by = current_foot_position.Y();
+                    const float bz = current_foot_position.Z();
+                    const float lx = cp*bx + sp*sr*by + sp*cr*bz;
+                    const float ly =              cr*by -    sr*bz;
+
+                    float delta_x = (prev_level_x_[i] - lx);
+                    float delta_y = (prev_level_y_[i] - ly);
                     
-                    float delta_x = (prev_foot_position_[i].X() - current_foot_position.X());
-                    float delta_y = (prev_foot_position_[i].Y() - current_foot_position.Y());
-                    
-                    float current_theta = atan2f(current_foot_position.X(), current_foot_position.Y());
+                    float current_theta = atan2f(lx, ly);
                     float delta_theta = (current_theta - prev_theta_[i]);
 
-                    if(foot_in_contact)
+                    // Yalnizca ayak BIR ONCEKI dongude de temasta ise say. Dokunus
+                    // anindaki ilk fark, ayagin salinim sirasinda one dogru yaptigi
+                    // hareketi de iceriyor; bu, govdenin geriye gittigi gibi okunup
+                    // yolu eksik tahmin ettiriyor. prev_foot_contacts_ bu amacla
+                    // zaten saklaniyordu ama kullanilmiyordu.
+                    if(foot_in_contact && prev_foot_contacts_[i])
                     {
                         total_contact += 1;
                         theta_sum += delta_theta;
-                        x_sum += delta_x / 2.0;
-                        y_sum += delta_y / 2.0;
+                        x_sum += delta_x;
+                        y_sum += delta_y;
                     }
                         
                     prev_foot_position_[i] = current_foot_position;
+                    prev_level_x_[i] = lx;
+                    prev_level_y_[i] = ly;
                     prev_foot_contacts_[i] = foot_in_contact;
                     prev_theta_[i] = current_theta;
                 }
@@ -141,6 +179,15 @@ namespace champ
                 // zero division check
                 if (dt == 0)
                     dt = 0.02;
+
+                // Temas eden ayak sayisina bol. Onceki surumde bolen sabit 2 idi
+                // ("her an tam iki ayak yerde" varsayimi); total_contact hesaplaniyor
+                // ama kullanilmiyordu. Uc ayak temas ettiginde bu, yer degistirmeyi
+                // 1.5 kat fazla sayiyordu.
+                const float contact_divisor = (total_contact > 0) ? float(total_contact) : 1.0f;
+                x_sum /= contact_divisor;
+                y_sum /= contact_divisor;
+                theta_sum /= contact_divisor;
                 vel.linear.x =  ((1 - beta_) * ((x_sum * base_->gait_config.odom_scaler) / dt)) + (beta_ * prev_vel_.linear.x);
                 vel.linear.y =  ((1 - beta_) * ((y_sum * base_->gait_config.odom_scaler) / dt)) + (beta_ * prev_vel_.linear.y);
                 vel.angular.z = ((1- beta_ ) * (theta_sum / dt)) + (beta_ * prev_vel_.angular.z);

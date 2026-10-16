@@ -162,7 +162,21 @@ void StateEstimation::imu_callback_(const sensor_msgs::msg::Imu::SharedPtr msg)
 
 void StateEstimation::publishFootprintToOdom_()
 {
-    odometry_.getVelocities(current_velocities_, rosTimeToChampTime(clock_.now()));
+    // Govde yonelimi IMU'dan: odometri ayak vektorlerini yatay cerceveye tasimak
+    // icin kullaniyor, yoksa govdenin yuruyus salinimi ceviri sanilip odometriye
+    // karisiyor (bkz. odometry.h).
+    float govde_roll = 0.0f, govde_pitch = 0.0f;
+    if (last_imu_ != nullptr)
+    {
+        tf2::Quaternion q(last_imu_->orientation.x, last_imu_->orientation.y,
+                          last_imu_->orientation.z, last_imu_->orientation.w);
+        double r, p, y;
+        tf2::Matrix3x3(q).getRPY(r, p, y);
+        govde_roll = static_cast<float>(r);
+        govde_pitch = static_cast<float>(p);
+    }
+    odometry_.getVelocities(current_velocities_, govde_roll, govde_pitch,
+                            rosTimeToChampTime(clock_.now()));
 
     rclcpp::Time current_time = clock_.now();
 
