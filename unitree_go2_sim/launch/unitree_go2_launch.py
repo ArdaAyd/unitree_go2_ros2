@@ -182,6 +182,13 @@ def generate_launch_description():
     )
 
     # Go2 static frame connection (map -> odom)
+    # SLAM dugumleri (RTAB-Map, FAST-LIO2 sarmallari) map->odom'u KENDILERI
+    # yayinlar. Bu statik birim donusum acik kalirsa ayni donusumun iki
+    # yayincisi olur ve TF agaci tutarsizlasir. SLAM kosulurken
+    # publish_map_odom:=false verilmeli.
+    declare_publish_map_odom = DeclareLaunchArgument(
+        "publish_map_odom", default_value="true",
+        description="Statik map->odom yayinla. SLAM kosarken false yapin.")
     map_to_odom_tf_node = Node(
         package='tf2_ros',
         name='map_to_odom_tf_node',
@@ -191,6 +198,7 @@ def generate_launch_description():
             '--roll', '0', '--pitch', '0', '--yaw', '0',
             '--frame-id', 'map', '--child-frame-id', 'odom'
         ],
+        condition=IfCondition(LaunchConfiguration('publish_map_odom')),
     )
 
     rviz2 = Node(
@@ -378,6 +386,7 @@ def generate_launch_description():
             footprint_to_odom_ekf,
             
             # Static TF publisher for frame connections
+            declare_publish_map_odom,
             map_to_odom_tf_node,
             
             # Controller spawners that handle the complete lifecycle
