@@ -3,7 +3,8 @@
     gait:
       knee_orientation : ">>"
       pantograph_leg : false
-      odom_scaler: 0.9
+      # Hesaplama duzeltildikten sonra telafi carpanina gerek kalmadi (onceki deger 0.9).
+      odom_scaler: 1.0
       max_linear_velocity_x : 0.3
       max_linear_velocity_y : 0.25
       max_angular_velocity_z : 0.5
