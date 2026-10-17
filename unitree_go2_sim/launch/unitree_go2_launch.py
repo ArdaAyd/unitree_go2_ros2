@@ -147,10 +147,18 @@ def generate_launch_description():
         remappings=[("/cmd_vel/smooth", "/cmd_vel")],
     )
 
-    # Varsayilanda min_normal_force=0, yani herhangi bir temas mesaji "ayak yerde"
-    # sayiliyor; salinimdaki ayagin siyirma temaslari da sayildigi icin ayak basina
-    # temas orani %63-72 cikiyordu (tirista ~%50 olmali) ve bacak odometrisi yolu
-    # eksik tahmin ediyordu. Esik ve zaman asimi artik disaridan verilebiliyor.
+    # TEMAS YAPILANDIRMASI — Asama 1 madde 1.2'de olculup tek bir secime
+    # baglanacak. Su anki ETKIN durum:
+    #   min_normal_force = 0.0  (launch, dugumun 15.0 varsayilanini EZIYOR)
+    #   contact_release_force = 5.0
+    # min > release olmadigi icin histerezis KAPALI; dugum bu durumda uyari
+    # basiyor. Yani fiilen "sensor, esik kapali" yapilandirmasi kullaniliyor.
+    #
+    # PILOT GOZLEM (DOGRULANMADI): esik kapaliyken ayak basina temas orani
+    # %63-72 olculmustu (tiris yuruyusunde nominal ~%50 beklenir); salinimdaki
+    # ayagin siyirma temaslarinin da sayilmasi muhtemel sebep. Bunun bacak
+    # odometrisine etkisi OLCULMEDI. Uc secenek (A: esik kapali, B: histerezis
+    # 15/5 N, C: yuruyus fazi) madde 1.2'de karsilastirilacak.
     foot_contacts_bridge_node = Node(
         package="unitree_application",
         executable="foot_contacts_bridge",
