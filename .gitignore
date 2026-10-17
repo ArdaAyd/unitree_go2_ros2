@@ -6,3 +6,11 @@ __pycache__/
 build/
 install/
 log/
+
+# Uretilen varliklar — ana depodaki tools/doku_uret.py ve tools/dokulu_dunya.py
+# ile yeniden uretilir, depoda tutulmaz.
+unitree_go2_description/materials/textures/*.png
+unitree_go2_description/worlds/*_yukseklik.png
+unitree_go2_description/worlds/koridor_dokulu.sdf
+unitree_go2_description/worlds/oda_dagnik.sdf
+unitree_go2_description/worlds/engebe_s*.sdf
