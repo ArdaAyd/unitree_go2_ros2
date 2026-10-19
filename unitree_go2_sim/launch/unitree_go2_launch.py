@@ -147,18 +147,29 @@ def generate_launch_description():
         remappings=[("/cmd_vel/smooth", "/cmd_vel")],
     )
 
-    # TEMAS YAPILANDIRMASI — Asama 1 madde 1.2'de olculup tek bir secime
-    # baglanacak. Su anki ETKIN durum:
-    #   min_normal_force = 0.0  (launch, dugumun 15.0 varsayilanini EZIYOR)
-    #   contact_release_force = 5.0
-    # min > release olmadigi icin histerezis KAPALI; dugum bu durumda uyari
-    # basiyor. Yani fiilen "sensor, esik kapali" yapilandirmasi kullaniliyor.
+    # TEMAS YAPILANDIRMASI — OLCULDU (3 yapilandirma x 2 hiz x 3 kosu,
+    # koridor_dokulu, gidis_donus:6, sim saati, evo SE(3) hizalama).
+    # 0.2 m/s satiri, medyan (min-maks):
     #
-    # PILOT GOZLEM (DOGRULANMADI): esik kapaliyken ayak basina temas orani
-    # %63-72 olculmustu (tiris yuruyusunde nominal ~%50 beklenir); salinimdaki
-    # ayagin siyirma temaslarinin da sayilmasi muhtemel sebep. Bunun bacak
-    # odometrisine etkisi OLCULMEDI. Uc secenek (A: esik kapali, B: histerezis
-    # 15/5 N, C: yuruyus fazi) madde 1.2'de karsilastirilacak.
+    #   yap  temas orani    RPE cev (1 m) m        ATE rmse m
+    #   A    0.737          0.064 (0.057-0.093)    0.64 (0.18-0.95)
+    #   B    0.642          0.132 (0.130-0.150)    0.41 (0.33-0.97)
+    #   C    0.739          0.227 (0.210-0.238)    0.71 (0.57-0.97)
+    #
+    # A: esik kapali (asagidaki varsayilanlar)  B: histerezis 15/5 N
+    # C: yuruyus fazi (contact_source_topic=foot_contacts/gait)
+    #
+    # SECILEN: A. Gerekce: RPE'de araliklar ortusmuyor ve A iki hizda da en
+    # iyi. ATE ve son konum hatasinda B daha iyi cikiyor ama o metriklerde
+    # araliklar genis ve ortusuyor (N=3).
+    #
+    # Pilot yorum "esik kapaliyken temas orani %63-72 cikiyor ve bacak
+    # odometrisini bozuyor" diyordu; olcum bunu DESTEKLEMEDI. Temas orani
+    # gercekten yuksek ama yerel dogrulugu en iyi olan yapilandirma bu.
+    # Histerezis temas oranini nominal %50'ye yaklastiriyor (%64) ama RPE'yi
+    # iki kat kotulestiriyor.
+    #
+    # SECILMEYENLER: B ve C denendi, secilmedi.
     foot_contacts_bridge_node = Node(
         package="unitree_application",
         executable="foot_contacts_bridge",
